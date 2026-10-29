@@ -1,0 +1,171 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-15
+    env:
+      # What the app must never do, checked line by line and again with calls split across lines joined.
+      # C's system() isn't listed: Swift marks it unavailable on macOS, so it can't be called.
+      NETWORK: 'URLSession|NWConnection|NWListener|NWBrowser|NWPathMonitor|CFSocket|CFStream|NSURLConnection|WKWebView|getaddrinfo|\bsocket\(|\bconnect\(|contentsOf: *URL\(string|openURL|openApplication|LSOpen|NSAppleScript|NSAppleEventDescriptor|AESend|SBApplication|NSUserAppleScriptTask|SMJobBless|NSXPCConnection|task_for_pid|ptrace|posix_spawn|\bProcess\b|NSTask|XMLParser\(contentsOf|resourceBytes|\.lines\b|CFHTTP|CFReadStreamCreateForHTTPRequest|OSAScript|NSUserScriptTask|launchApplication|selectFile|activateFileViewerSelecting|dlsym|dlopen|NSUserUnixTask|\bexec(l|lp|le|v|vp|ve|vP) *\(|\bfork *\(|\bvfork|popen|(^|[^[:alnum:]_])Link\('
+      INPUT: 'tapCreate|CGEventTap|NSEvent\.addGlobalMonitor|NSEvent\.addLocalMonitor|addGlobalMonitorForEvents|IOHID|CGEventSourceKeyState|CGWindowListCreateImage|CGWindowListCopyWindowInfo|SCShareableContent|SCStream|SCScreenshot|CGDisplayStream|CGDisplayCreateImage|kAXTitleAttribute|"AXTitle"|kAXSelectedText|"AXSelectedText|kAXSelectedChildren|kAXDescriptionAttribute|kAXHelpAttribute|AXUIElementPerformAction|kAXRaiseAction|kAXPressAction|NSPasteboard|NSAccessibility\.Attribute|kAXValueDescription|kAXURLAttribute|ParameterizedAttribute|kAXStringForRange'
+      FILES: 'contentsOfDirectory|enumerator\(at|enumerator\(atPath|subpathsOfDirectory|subpaths\(atPath|Data\(contentsOf|contents\(atPath|String\(contentsOf|FileHandle|fopen\(|freopen\(|\bopen *\(|openat\(|opendir\(|readdir\(|mmap\(|dlopen\(|\.write\(to:|\.write\(toFile|createFile|copyItem|moveItem|linkItem|removeItem|trashItem|recycle\(|createDirectory|setAttributes|createSymbolicLink|unlink\(|rmdir\(|\bmkdir *\(|rename\(|truncate\(|copyfile\(|clonefile\(|setxattr\(|getxattr\(|removexattr\(|NSDictionary\(contentsOf|NSArray\(contentsOf|NSData\(contentsOf|NSImage\(contentsOf|contentsOfFile|InputStream\(|OutputStream\(|sqlite3_open|NSFileCoordinator|NSMetadataQuery|\bglob\(|fts_open|MDQuery|replaceItemAt|CFPreferences|UserDefaults\(suiteName|NSUbiquitousKeyValueStore'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Run tests
+        run: swift test
+
+      - name: Build the app
+        run: scripts/build-app.sh
+
+      - name: Check the app has no entitlements and the hardened runtime
+        run: |
+          binary="build/Right Folder.app"
+          entitlements="$(codesign -d --entitlements - --xml "$binary" 2>/dev/null || true)"
+          if grep -q "<key>" <<< "$entitlements"; then
+            echo "$entitlements"
+            echo "::error::Right Folder must have no entitlements: no network, no Apple Events, no sandbox exceptions."
+            exit 1
+          fi
+          if ! codesign -dv "$binary" 2>&1 | grep -q "flags=.*runtime"; then
+            echo "::error::$binary must be signed with the hardened runtime."
+            exit 1
+          fi
+          # An ad-hoc build's default requirement names its exact code. One that names only an
+          # identifier would let another program pass itself off as this one and use its Accessibility.
+          requirement="$(codesign -d -r- "$binary" 2>&1 | grep 'designated =>' || true)"
+          if ! grep -qE '^# designated => cdhash H"[0-9a-f]+"( or cdhash H"[0-9a-f]+")*$' <<< "$requirement"; then
+            echo "$requirement"
+            echo "::error::$binary must keep the default requirement, which names its exact build."
+            exit 1
+          fi
+          if /usr/libexec/PlistBuddy -c "Print :NSAppleEventsUsageDescription" Resources/Info.plist 2>/dev/null; then
+            echo "::error::Right Folder never sends Apple Events, so it must not ask to."
+            exit 1
+          fi
+          echo "No entitlements, hardened runtime, default requirement."
+
+      - name: Check the app never uses the network, scripts other apps or starts programs
+        run: |
+          if grep -rnE "$NETWORK" Sources; then
+            echo "::error::Right Folder must not use the network, send Apple Events or start other programs."
+            exit 1
+          fi
+          # The one page it opens is Accessibility in System Settings, from one file.
+          found="$(grep -rnE 'NSWorkspace[^)]*\.open\(|\.open\(' Sources | grep -v '^Sources/RightFolder/Accessibility.swift:.*NSWorkspace.shared.open(settingsURL)$' || true)"
+          if [ -n "$found" ]; then
+            echo "$found"
+            echo "::error::Only Accessibility.swift may open anything, and only the Accessibility settings page."
+            exit 1
+          fi
+          if grep -rn 'URL(string:' Sources | grep -vE '^Sources/(RightFolder/Accessibility|FolderCore/Paths)\.swift:'; then
+            echo "::error::Only Accessibility.swift names a URL, and only Paths.swift reads one, to turn Finder's into a path."
+            exit 1
+          fi
+          if ! grep -q '"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"' Sources/RightFolder/Accessibility.swift; then
+            echo "::error::The only URL is the Accessibility settings page."
+            exit 1
+          fi
+          echo "No networking, URL opening besides the settings page, Apple Events or child processes."
+
+      - name: Check it never reads keys, window text or the screen
+        run: |
+          if grep -rnE "$INPUT" Sources; then
+            echo "::error::Right Folder must never watch keys, read window titles or text, capture the screen or use the clipboard."
+            exit 1
+          fi
+          # Each powerful call lives in one file, so it's easy to review.
+          check() {
+            local pattern="$1" file="$2" what="$3"
+            found="$(grep -rnE "$pattern" Sources | grep -v "^Sources/RightFolder/$file:" || true)"
+            if [ -n "$found" ]; then
+              echo "$found"
+              echo "::error::Only $file may $what."
+              exit 1
+            fi
+          }
+          check 'CGEvent|postToPid|\.post\(tap' Navigator.swift 'send keys'
+          check 'kAXValueAttribute|"AXValue"|AXUIElementSetAttributeValue' Navigator.swift 'read or set a field'
+          check 'kAXFocusedUIElementAttribute|"AXFocusedUIElement"' Navigator.swift 'ask which field has the keyboard'
+          check 'kAXDocumentAttribute|"AXDocument"' FinderFolders.swift "read a window's folder"
+          check 'AXObserver' DialogWatcher.swift 'watch for windows'
+          check 'RegisterEventHotKey|InstallEventHandler' Hotkey.swift 'register a shortcut'
+          check 'AXIsProcessTrustedWithOptions' Accessibility.swift 'ask for Accessibility'
+          # The Go to Folder field is the only one whose value is read.
+          if [ "$(grep -c 'kAXValueAttribute' Sources/RightFolder/Navigator.swift)" -ne 2 ]; then
+            echo "::error::Navigator.swift should set one value and read it back, nothing more."
+            exit 1
+          fi
+          # Accessibility notifications come only from the app in front, never from every app at once.
+          if grep -rn 'AXUIElementCreateSystemWide' Sources; then
+            echo "::error::Right Folder watches the app in front, not the whole system."
+            exit 1
+          fi
+          echo "No key watching, window text, screen capture or clipboard; each powerful call in its one file."
+
+      - name: Check no folder is listed and no file is opened, written or deleted
+        run: |
+          # It looks only at folder paths. Settings go through UserDefaults; whether a folder exists,
+          # the mount table and bookmarks are asked only in FolderSystem.swift.
+          if grep -rnE "$FILES" Sources | grep -v 'NSWorkspace.shared.open(settingsURL)$'; then
+            echo "::error::Right Folder must never list a folder or open, write or delete a file."
+            exit 1
+          fi
+          found="$(grep -rnE 'fileExists|getfsstat|statfs|\blstat|\bstat\(|destinationOfSymbolicLink|bookmarkData|resolvingBookmarkData|attributesOfItem|resourceValues|displayName\(atPath|urlForApplication' Sources | grep -v '^Sources/RightFolder/FolderSystem.swift:' || true)"
+          if [ -n "$found" ]; then
+            echo "$found"
+            echo "::error::Only FolderSystem.swift may look at the file system."
+            exit 1
+          fi
+          if ! grep -q 'MNT_NOWAIT' Sources/RightFolder/FolderSystem.swift || ! grep -q 'withoutMounting' Sources/RightFolder/FolderSystem.swift; then
+            echo "::error::The mount table must be read without waiting, and bookmarks resolved without mounting."
+            exit 1
+          fi
+          echo "No folder listed and no file opened, written or deleted."
+
+      - name: Check what the built app links and calls
+        run: |
+          # A second look, at the binary itself, which catches whatever the source checks miss,
+          # however it's written.
+          binary="build/Right Folder.app/Contents/MacOS/RightFolder"
+          libraries="$(otool -L "$binary" | tail -n +2)"
+          if grep -E 'Network\.framework|CFNetwork|WebKit|OSAKit|ScriptingBridge|AppleScriptObjC|Security\.framework|ScreenCaptureKit|IOKit\.framework' <<< "$libraries"; then
+            echo "::error::Right Folder must not link networking, scripting, web, screen capture or device frameworks."
+            exit 1
+          fi
+          for arch in arm64 x86_64; do
+            symbols="$(nm -u -arch "$arch" "$binary")"
+            if grep -E '^_(socket|connect|getaddrinfo|dlsym|dlopen|posix_spawnp?|fork|vfork|execv[ep]?|execl[ep]?|system|popen|CGEventTapCreate.*|CGWindowListCreateImage|AXUIElementCopyParameterizedAttributeValue|AXUIElementPerformAction|AXUIElementCreateSystemWide|IOHID.*|AESend.*)$|URLSession|NSTask|NSAppleScript|NSPasteboard|WKWebView|OSAScript|NWConnection' <<< "$symbols"; then
+              echo "::error::The $arch binary imports something Right Folder must never call."
+              exit 1
+            fi
+          done
+          echo "Links nothing it shouldn't, and imports no networking, process, scripting, capture or event tap calls."
+
+      - name: Check calls split across lines too
+        run: |
+          # The checks above read line by line, so join each call's arguments onto one line and look again.
+          joined="$(find Sources -name '*.swift' -exec cat {} + | perl -0pe 's/\(\s+/(/g; s/\s*\n\s*\././g; s/:\s*\n\s*/: /g')"
+          for name in NETWORK INPUT FILES; do
+            if grep -E "${!name}" <<< "$joined" | grep -v 'NSWorkspace.shared.open(settingsURL)$'; then
+              echo "::error::A call split across lines matches the $name check."
+              exit 1
+            fi
+          done
+          echo "Nothing found with calls joined."
+
+      - name: Check there are no dependencies
+        run: |
+          if grep -nE '\.package\(|binaryTarget|\.plugin\(|unsafeFlags|linkerSettings|linkedLibrary|linkedFramework' Package.swift; then
+            echo "::error::Right Folder has no dependencies, so every line that runs is in this repository."
+            exit 1
+          fi
+          echo "No dependencies."

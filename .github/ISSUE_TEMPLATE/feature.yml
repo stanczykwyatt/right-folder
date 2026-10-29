@@ -1,0 +1,19 @@
+name: Feature request
+description: Suggest an idea, or a place it should offer folders from.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What would it help you do?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How do you picture it working?
+  - type: input
+    id: app
+    attributes:
+      label: An app it should work better with
+      description: If it's about one app's dialogs, which one.
