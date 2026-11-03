@@ -62,6 +62,8 @@ If it saves you some clicking, [starring the repo](https://github.com/stanczykwy
 
 ## Install
 
+> **Early release:** Right Folder's dialog handling is covered by 138 off-screen tests, but it hasn't been tried on a real Open or Save dialog yet. If the panel doesn't appear or a jump doesn't land, please [open an issue](https://github.com/stanczykwyatt/right-folder/issues) with the app and your macOS version.
+
 1. [Download **Right-Folder.zip**](https://github.com/stanczykwyatt/right-folder/releases/latest/download/Right-Folder.zip) and unzip it.
 2. Move **Right Folder** to your Applications folder and open it. It opens at login from then on; turn that off in its menu.
 3. Click **Allow Accessibility…** and switch on Right Folder in **System Settings → Privacy & Security → Accessibility**.
