@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Right Folder: a free Default Folder X alternative for Mac Open and Save dialogs</title>
+  <title>Right Folder: free Default Folder X alternative for Mac</title>
   <meta name="description" content="Right Folder is a free, open-source Mac menu bar app that puts the folders open in Finder, your recent folders and your favorites beside every Open and Save dialog. One click, or ⌃⌥J, and the dialog goes there. A free alternative to the core of Default Folder X. No internet access, never reads your files or what you type.">
   <meta name="keywords" content="default folder x alternative, free default folder x, mac save dialog finder folder, open save dialog jump to folder mac, save dialog current finder folder, go to folder save dialog, mac file dialog favorites, menu bar app">
   <link rel="canonical" href="https://stanczykwyatt.github.io/right-folder/">
@@ -56,38 +56,53 @@
   }
   </script>
   <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@type": "FAQPage",
-    "mainEntity": [
-      {
-        "@type": "Question",
-        "name": "Is there a free alternative to Default Folder X?",
-        "acceptedAnswer": { "@type": "Answer", "text": "Right Folder is a free, open-source app for the core of it: the folders open in Finder, recent folders and favorites, one click away in every Open and Save dialog. It doesn't have Default Folder X's previews, tagging or file info." }
-      },
-      {
-        "@type": "Question",
-        "name": "How do I make a Mac Save dialog open in the folder I have open in Finder?",
-        "acceptedAnswer": { "@type": "Answer", "text": "With Right Folder running, the folder open in Finder is listed first in the panel beside the dialog. Click it, or press Control-Option-J, and the dialog goes there." }
-      },
-      {
-        "@type": "Question",
-        "name": "Is there a keyboard shortcut to change folders in an Open or Save dialog?",
-        "acceptedAnswer": { "@type": "Answer", "text": "macOS has Shift-Command-G, which asks you to type a path. Right Folder adds Control-Option-J, which goes to the first folder in its list, then the next each time you press it, and Control-Option-Shift-J to go back." }
-      },
-      {
-        "@type": "Question",
-        "name": "Why does Right Folder need Accessibility?",
-        "acceptedAnswer": { "@type": "Answer", "text": "To notice an Open or Save dialog, to read which folder each Finder window shows, and to press Shift-Command-G in the dialog when you pick a folder. It never reads what you type, your windows' text or what's in your folders, and it has no internet access." }
-      },
-      {
-        "@type": "Question",
-        "name": "Does it work in every app?",
-        "acceptedAnswer": { "@type": "Answer", "text": "It works in apps that use the standard macOS Open and Save dialogs, which is nearly all of them, as sheets or windows. Apps with their own file browser aren't recognized." }
+{
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  "mainEntity": [
+    {
+      "@type": "Question",
+      "name": "Is it a free Default Folder X alternative?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "For the core of it, yes: the folders open in Finder, recent folders and favorites, a click away in every Open and Save dialog. Default Folder X does much more, like previews, tags and file info in the dialog. Right Folder does the jumping, for free, with its source open."
       }
-    ]
-  }
-  </script>
+    },
+    {
+      "@type": "Question",
+      "name": "How do I make a Save dialog open in my Finder folder?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "With Right Folder running, the folder open in Finder is listed first beside the dialog. Click it, or press ⌃⌥J."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why does it need Accessibility?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "To notice an Open or Save dialog, read which folder each Finder window shows, and press ⇧⌘G in the dialog when you pick a folder. Nothing else: no Automation, Full Disk Access, Input Monitoring or Screen Recording. The details are in SECURITY.md."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Does it work in every app?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "In apps that use the standard macOS Open and Save dialogs, which is nearly all of them, as sheets or windows. Apps with their own file browser aren't recognized. If one you use is missed, say which."
+      }
+    },
+    {
+      "@type": "Question",
+      "name": "Why do I allow it again after an update?",
+      "acceptedAnswer": {
+        "@type": "Answer",
+        "text": "Each release is signed for that exact build, and macOS ties Accessibility to it, so no other program can borrow the permission by pretending to be Right Folder. Remove the old entry with – in Privacy & Security → Accessibility, then allow the new one."
+      }
+    }
+  ]
+}
+</script>
 
   <style>
     :root {
