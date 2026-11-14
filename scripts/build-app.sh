@@ -20,8 +20,12 @@ app="build/Right Folder.app"
 binaries=()
 for arch in arm64 x86_64; do
 	triple="$arch-apple-macosx14.0"
-	swift build -c release --product RightFolder --triple "$triple"
-	bin="$(swift build -c release --triple "$triple" --show-bin-path)"
+	# Swift 6.4's default scratch layout is triple-independent (out/Products/Release), so with a
+	# shared scratch both triples report the same bin path and the x86_64 build overwrites the
+	# arm64 one before lipo. Give each arch its own scratch; triple-keyed layouts work the same.
+	scratch=".build/$arch-scratch"
+	swift build -c release --product RightFolder --triple "$triple" --scratch-path "$scratch"
+	bin="$(swift build -c release --triple "$triple" --scratch-path "$scratch" --show-bin-path)"
 	binaries+=("$bin/RightFolder")
 done
 
